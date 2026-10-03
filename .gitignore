@@ -1,0 +1,24 @@
+# Godot 4 
+.godot/
+*.translation
+*.pck
+*.apk
+*.aab
+
+# TouchDesigner
+*.toe~*
+*.tox~*
+Backup/
+Crash/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
