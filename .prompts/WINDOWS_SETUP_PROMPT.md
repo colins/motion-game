@@ -2,19 +2,19 @@
 
 ## Objective
 Configure this Windows 10 PC (Dell OptiPlex 3010 with GTX 1050 Ti) to run the interactive floor game pipeline:
-1. Detect and verify the **PCIe USB 3.0 card** and **Microsoft Kinect v2** depth sensor.
-2. Install and configure **Godot 4** to run the Bubble Pop game (`/game`).
-3. Install **TouchDesigner** and configure the minimal vision network (`/vision`) to track footprints and stream OSC coordinates to Godot.
-4. Verify the end-to-end loop: Player steps on floor $\rightarrow$ Kinect captures depth $\rightarrow$ TouchDesigner extracts blobs $\rightarrow$ OSC sent to `127.0.0.1:9000` $\rightarrow$ Godot pops bubbles with sound & particles.
+1. Run **Godot 4** in fullscreen floor projection (`/game`).
+2. Receive player footprints directly from the **Raspberry Pi 4 LiDAR bridge** over Ethernet (UDP port 9000).
+3. Use the in-engine 4-corner calibration (`C`) to align the projected image to the physical floor area.
+4. Verify the end-to-end loop: Player steps on floor $\rightarrow$ RPLIDAR detects feet $\rightarrow$ Pi clusters centroids $\rightarrow$ OSC sent over Ethernet to port 9000 $\rightarrow$ Godot pops bubbles with sound & particles.
 
 ---
 
 ## Hardware Context & Assumptions
 - **Host PC**: Dell OptiPlex 3010, Windows 10 64-bit, Nvidia GeForce GTX 1050 Ti.
-- **PCIe USB Card**: GLOTRENDS U3023 (Renesas / NEC uPD720202) installed in PCIe x1 slot.
-- **Sensor**: Kinect for Xbox One (Model 1520) with 12V AC PC adapter plugged into the PCIe USB 3.0 port.
-- **Display**: Primary monitor or projector connected to GTX 1050 Ti via HDMI/DP.
-- **Repo Root**: Contains `/game` (Godot project) and `/vision` (TouchDesigner assets).
+- **Sensor**: Slamtec RPLIDAR S2L connected via USB to Raspberry Pi 4 (PoE powered at 192.168.1.51).
+- **Network**: Direct Ethernet connection on local subnet (Gigabit UDP stream).
+- **Display**: Projector connected to GTX 1050 Ti via HDMI/DP.
+- **Repo Root**: Contains `/game` (Godot project), `/lidar-bridge` (Raspberry Pi C++ daemon), and `/tools` (developer simulator).
 
 ---
 
@@ -79,54 +79,35 @@ winget install --id GodotEngine.GodotEngine -e
 
 ---
 
-## Phase 3: TouchDesigner Vision & Tracking Pipeline
+## Phase 3: Network LiDAR Connection (Raspberry Pi 4)
 
-### 3.1 Install TouchDesigner
-1. Download and install **TouchDesigner** (Version 2023+ or 2024+):
-   - https://derivative.ca/download
-   - Non-Commercial license is free and fully supports Kinect v2 + OSC.
-2. Sign in with a free Derivative account when prompted.
+*Note: TouchDesigner has been eliminated from the architecture. The Raspberry Pi 4 processes LiDAR scans on-board and streams OSC directly over Ethernet to UDP port 9000.*
 
-### 3.2 Build the Minimal Tracking Network
-Open TouchDesigner and create the following lightweight node chain in `/project1`:
-
-1. **`Kinect TOP`** (`kinect1`):
-   - Set **Hardware Version** = `Kinect 2`.
-   - Set **Image** = `Depth` (or `Player Index`).
-2. **`Threshold TOP`** (`thresh1`):
-   - Connect input to `kinect1`.
-   - Set **Threshold** to isolate the floor slice (e.g. `0.85` to `0.98` depending on ceiling distance). Pixels where kids' feet touch the floor turn bright white; the bare floor is black.
-3. **`Blob Track TOP`** (`blobtrack1`):
-   - Connect input to `thresh1`.
-   - Set **Min Area** and **Max Area** to match typical child foot/body sizes (e.g. Min: 0.005, Max: 0.15).
-   - Set **Max Blobs** = `4`.
-4. **`Stoner` or `Corner Pin TOP`** (`calibrate1`):
-   - Used for 4-point homography calibration: maps the 4 corners of the Kinect floor view directly to the 4 corners of the projector output.
-5. **`OSC Out CHOP`** (`oscout1`):
-   - Ingest normalized `tx` and `ty` channels from the tracked blobs.
-   - Set **Network Address** = `127.0.0.1`.
-   - Set **Network Port** = `9000`.
-   - Set address format = `/player/update` or `/player/[id]`.
-
-*(Optional: Save this network into `/vision/kinect_tracker.toe`)*.
+### 3.1 Verify Network Connection to Raspberry Pi
+1. Test network ping from Windows PowerShell:
+   ```powershell
+   ping 192.168.1.51
+   ```
+2. Verify that UDP port 9000 is open in Windows Firewall:
+   ```powershell
+   New-NetFirewallRule -DisplayName "Godot OSC Port 9000" -Direction Inbound -LocalPort 9000 -Protocol UDP -Action Allow
+   ```
 
 ---
 
-## Phase 4: End-to-End Smoke Test
+## Phase 4: End-to-End Smoke Test & Floor Calibration
 
 1. **Launch Godot Game**:
    ```powershell
    godot --path game -f
    ```
-2. **Launch TouchDesigner**:
-   - Open `/vision/kinect_tracker.toe` and verify the OSC Out CHOP is sending packets.
-3. **Physical Playtest**:
-   - Step into the Kinect's field of view.
-   - Look at the Godot window (or projection on floor).
-   - **Success Criteria**:
-     - A glowing foot circle appears beneath your foot.
-     - Stepping on a bubble triggers a pop sound, score popup, and particle explosion.
-     - Stepping out of view removes the footprint.
+2. **Verify Footprints**:
+   - The Raspberry Pi (`lidar_bridge`) streams player footprints over UDP.
+   - Glowing circular footprints appear beneath active players.
+3. **Calibrate Floor Projection**:
+   - Press **`C`** on the keyboard to bring up the 4-Corner Calibration overlay.
+   - Walk to and step on each highlighted corner target (Top-Left $\rightarrow$ Top-Right $\rightarrow$ Bottom-Right $\rightarrow$ Bottom-Left) and press **`SPACE`**.
+   - The calibration matrix saves to disk and immediately aligns the game field with the physical floor area.
 
 ---
 
@@ -138,12 +119,7 @@ Create a batch file `launch_game.bat` in the root folder so the system can be st
 @echo off
 title Launching Floor Game...
 
-echo Starting TouchDesigner Vision Engine...
-start "" "C:\Program Files\Derivative\TouchDesigner\bin\TouchDesigner.exe" -p vision\kinect_tracker.toe
-
-timeout /t 3 /nobreak > nul
-
-echo Starting Godot Bubble Pop Game...
+echo Starting Godot Floor Game...
 start "" godot.exe --path game -f
 
 echo System Running! Press any key to exit launcher.

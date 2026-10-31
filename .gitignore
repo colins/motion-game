@@ -5,11 +5,10 @@
 *.apk
 *.aab
 
-# TouchDesigner
-*.toe~*
-*.tox~*
-Backup/
-Crash/
+# C++ / LiDAR Bridge
+lidar-bridge/lidar_bridge
+*.o
+*.a
 
 # Python
 __pycache__/

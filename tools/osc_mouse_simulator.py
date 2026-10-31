@@ -245,7 +245,7 @@ class OSCMouseSimulator:
                 if data['active']:
                     # Format 1: /player/update [id: int, x: float, y: float]
                     msg1 = build_osc_message("/player/update", [pid, float(data['x']), float(data['y'])])
-                    # Format 2: /player/<id> [x: float, y: float] (standard TouchDesigner channel format)
+                    # Format 2: /player/<id> [x: float, y: float] (indexed channel format)
                     msg2 = build_osc_message(f"/player/{pid}", [float(data['x']), float(data['y'])])
                     
                     try:

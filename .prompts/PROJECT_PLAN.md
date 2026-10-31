@@ -35,10 +35,10 @@
    - **Putrims K12**: At 8.5–9 ft drop, throw ratio 1.3:1 yields an image roughly **~6.5–6.9 ft wide by ~3.7–3.9 ft deep** (16:9). Still modest relative to the room, but larger than at 7 ft. Thermal ventilation remains critical if pointing vertically downward.
    - **Vava UST**: Floor placement risks tripping/kicking by 8–10-year-olds; ceiling mount requires custom bracket/mirror and strict keystone adjustment.
    - **Drop Ceiling Mounting**: Suspended ceilings provide convenient routing space for cables and the ability to mount via standard 2×2 / 2×4 drop-ceiling projector plates (or scissor clamps on the T-bar grid for lightweight hardware).
-4. **Architecture Synergy (Hybrid Pipeline)**:
-   - TouchDesigner handles what it does best: camera hardware interfacing, depth slicing, blob extraction, and 4-point visual calibration. It remains a minimal, rarely modified network.
-   - Godot 4 handles what it does best: 2D physics, entity state, steering AI, animated sprites, particle juice, and audio. Godot scenes (`.tscn`) and scripts (`.gd`) are plain text and 100% diffable in Git.
-   - The two communicate via local OSC (`127.0.0.1:9000`), allowing complete decoupling, cross-platform macOS development, and zero-latency communication.
+4. **Architecture Synergy (Direct LiDAR to Godot Pipeline - TouchDesigner Eliminated)**:
+   - **Raspberry Pi 4 + RPLIDAR S2L**: Handles sensor-level processing at the edge. The C++ `lidar_bridge` daemon consumes 32,000 pts/sec from the hardware SDK, performs Euclidean clustering for player feet, tracks player IDs, and streams compact `/player/update [id, x, y]` OSC packets directly over Ethernet (port 9000).
+   - **Godot 4**: Ingests OSC directly on UDP port 9000, handles 2D physics, beast AI, particle juice, audio, fullscreen 1080p/4K projection, and includes an in-engine 4-corner floor calibration overlay (`calibration.gd` / `calibration_overlay.tscn`).
+   - **TouchDesigner Removed**: Eliminates commercial licensing restrictions ($600–$2,200), eliminates 1280×1280 resolution caps, avoids multi-window focus issues on the Windows host, and keeps 100% of the project in version-controlled text code (C++ & GDScript).
 
 ---
 
@@ -69,17 +69,17 @@
   - [x] Survey and benchmark existing TouchDesigner MCP servers on GitHub.
   - [x] **Recommendation**: Use [benoitliard/touch-mcp](https://github.com/benoitliard/touch-mcp) (persistent WebSocket transport on port 9980, 37 tools including `td_batch`, auto-layout, parameter introspection, and image snapshots). Fallback: [8beeeaaat/touchdesigner-mcp](https://github.com/8beeeaaat/touchdesigner-mcp).
   - [x] Confirmed workflow: AI agent can programmatically construct and modify the node graph via MCP; TouchDesigner runs in the background as the execution engine.
-- [x] **2.2. Architecture Selection: Hybrid TouchDesigner + Godot Pipeline**:
-  - [x] **Decision**: Adopt the **Hybrid Pipeline** (TouchDesigner Vision Engine $\rightarrow$ OSC over UDP $\rightarrow$ Godot 4 Game Engine).
-  - [x] **TouchDesigner Scope (Windows Host)**: Minimal 5–8 node network. Ingests Kinect v2 depth stream, performs background subtraction / floor slicing, tracks player blobs, applies 4-point homography calibration, and broadcasts normalized coordinates (`/player/<id> [x, y]`) over local OSC (UDP port 9000).
-  - [x] **Godot 4 Scope (Cross-Platform Dev & Win Deployment)**: Full 2D game engine handling beast AI (steering/fleeing/trapping), particle effects, sound fx, game states (start/win/round timers), scoring, and fullscreen projection output.
+- [x] **2.2. Architecture Evolution: Native LiDAR + Godot 4 Pipeline (TouchDesigner Cut)**:
+  - [x] **Decision**: TouchDesigner eliminated in favor of a direct **Raspberry Pi 4 (PoE) $\rightarrow$ Ethernet (OSC UDP) $\rightarrow$ Godot 4** pipeline.
+  - [x] **Sensor Scope (Raspberry Pi 4)**: C++ daemon running Slamtec SDK at 15 Hz, performs Euclidean clustering on foot reflections, tracks player IDs, and broadcasts directly to UDP port 9000.
+  - [x] **Godot 4 Scope**: Full game engine receiving `/player/update [id, x, y]`, native 1080p/4K rendering, and built-in 4-corner floor calibration.
   - [x] **Development Workflow**: 90%+ developed and iterated on macOS using an OSC mouse simulator; single-click export to Windows executable (`.exe`) for the OptiPlex 3010 runtime.
 - [x] **2.3. GitHub Source Control & Repository Strategy**:
-  - [x] Initialized directory structure separating vision tracker and game:
-    - `/vision`: Reserved for TouchDesigner project files and calibration configs.
-    - `/game`: Godot 4.7 project (`project.godot`, scenes, GDScript files).
+  - [x] Initialized directory structure:
+    - `/game`: Godot 4 project (`project.godot`, scenes, GDScript files).
+    - `/lidar-bridge`: C++ daemon running on Raspberry Pi 4.
     - `/tools`: Standalone Python OSC mouse simulator with zero external dependencies.
-  - [x] Configured `.gitignore` for Godot, TouchDesigner, and Python temporary/build artifacts.
+  - [x] Configured `.gitignore` for Godot, C++ artifacts, and Python.
 
 ---
 
@@ -93,24 +93,26 @@
 - [x] **3.2. Three-Year Total Cost of Ownership (TCO) Comparison**:
   - [x] **Turnkey Commercial**: $9,696 – $17,300+ (High hardware cost + mandatory ongoing subscriptions).
   - [x] **COTS Software (LUMOplay)**: $857 – $1,873 (Pre-made casual mini-games, limited beast mechanics).
-  - [x] **DIY Hybrid (TouchDesigner Non-Commercial + Godot 4)**: **$68 – $118** ($18 USB card + $50–$100 ceiling mount plate; $0 recurring software fees).
+  - [x] **DIY Native Pipeline (Godot 4 + Slamtec S2L + Pi 4)**: **~$350** ($290 LiDAR + $55 Pi + PoE HAT; $0 recurring software fees).
 - [x] **3.3. DIY Viability Decision**:
   - [x] **Verdict**: **DIY is emphatically worth it.** DIY saves ~$9,500–$17,000, avoids subscription lock-in, and provides full control to build active, cooperative beast-capturing gameplay tailored specifically for 8–10 year olds.
 
 ---
 
-### Phase 4: TouchDesigner Tracking & Calibration Pipeline (Windows Runtime)
-*Goal: Build a minimal, rock-solid TouchDesigner network that converts depth frames to calibrated OSC coordinates.*
+### Phase 4: LiDAR Ingestion & In-Engine Floor Calibration
+*Goal: Stream low-latency player coordinates and accurately align projector coordinates with the physical floor.*
 
-- [ ] **4.1. Top-Down Depth Segmentation**:
-  - Ingest Kinect v2 depth stream (`Kinect TOP`).
-  - Implement floor plane background subtraction and height slicing (detecting children between 2 inches and 5 feet off the floor).
-- [ ] **4.2. 2D Blob Detection & Filtering**:
-  - Use `Blob Track TOP` to isolate discrete player centroids and contact points.
-  - Apply smoothing (e.g., `Lag CHOP` or Kalman filter) to eliminate jitter and bridge temporary foot-lift transitions.
-- [ ] **4.3. Spatial Calibration & OSC Broadcast**:
-  - Use TouchDesigner's `Corner Pin / Stoner` component for visual 4-corner floor calibration (aligning camera FOV with projector bounds).
-  - Pack normalized player coordinates `(x, y)` into an `OSC Out CHOP` targeting Godot on `127.0.0.1:9000`.
+- [x] **4.1. Raspberry Pi 4 C++ Bridge Daemon**:
+  - Built high-speed C++17 daemon linked against official `libsl_lidar_sdk.a`.
+  - Configurable playfield bounds filtering and Euclidean foot clustering.
+  - Automatic fallback to internal 15 Hz mock simulator when LiDAR is disconnected.
+- [x] **4.2. Low-Latency OSC Streaming**:
+  - Broadcasts `/player/update [id, x, y]`, `/player/<id> [x, y]`, and `/player/remove [id]` over UDP port 9000.
+  - Raw point cloud packet streaming on port 7001 for diagnostics.
+- [x] **4.3. In-Engine 4-Corner Projector Calibration (`calibration.gd`)**:
+  - Interactive calibration overlay in Godot (Press `C`).
+  - 4-point bilinear mapping aligns physical floor dimensions with projector aspect ratio.
+  - Persistent storage in `user://floor_calibration.json`.
 
 ---
 
@@ -123,19 +125,29 @@
 - [x] **5.2. Starter / Younger Kid Game: Bubble Burst**:
   - [x] Built interactive `BubblePop` game: organic floating physics, sine wobbling, randomized varieties (Normal, Speedy, Mega).
   - [x] Real-time foot-strike collision detection against active kid footprints.
+  - [x] Holiday themes (Ghosts, Turkeys, Snowmen, Bubbles) switchable via `T` / `1`–`4`.
   - [x] Procedural particle explosion shockwaves (`pop_effect.tscn`).
   - [x] Built-in procedural audio pop synthesizer (`audio_manager.gd`) with dynamic pitch variation and zero external sound files.
   - [x] HUD with combo multiplier, score tracking, and active kid counters.
-- [ ] **5.3. Core Beast Capture Game (Ages 8–10)**:
-  - **Evasion & Fleeing AI**: Fast creatures detect nearby kid coordinates and scatter toward open space.
-  - **Cooperative Capture**: Fast "boss" beasts that cannot be stomped by one kid alone; requires two kids to corner or surround them within a radius.
-  - **Spawning & Arenas**: Dynamic hazard zones (mud that slows beasts, ice where they slide).
-- [ ] **5.4. Gameplay Polish & "Juice"**:
-  - 60 FPS 2D particle explosions on capture, screen/floor shake, animated sprite sheets.
-  - High-energy audio effects (spawn alerts, capture cheers, round timer music).
-  - Attract loop $\rightarrow$ Countdown $\rightarrow$ 60-second Frenzy Round $\rightarrow$ Team High Score screen.
-- [ ] **5.5. End-to-End Latency Verification**:
-  - Verify overall latency $<50\text{ ms}$ (Kinect capture $\rightarrow$ TD Blob $\rightarrow$ UDP OSC $\rightarrow$ Godot frame draw).
+- [x] **5.3. Laser Line Jumping (Jump Rope / Laser Sweeper)**:
+  - [x] Sweeping laser line traverses the arena in alternating directions (top-down, bottom-up, left-right, right-left).
+  - [x] LiDAR air-elevation detection: airborne jumping feet avoid collision with the floor laser.
+  - [x] Exact point of contact highlighted on impact with electrical shockwave, sparks, and tag freeze.
+  - [x] Synthesized electric zap audio, pass whoosh chimes, and escalating speed per round.
+- [x] **5.4. Circle Scramble (Musical Spots)**:
+  - [x] Configurable 2 to 6 glowing circles scattered across the floor with distance rejection.
+  - [x] Adjustable count via `[` / `]` or `-` / `+` hotkeys on the fly.
+  - [x] Countdown timer with accelerating audible ticks.
+  - [x] One kid per circle occupancy check with bright chime and checkmark lock-in.
+  - [x] Fanfare celebration when all circles are found, timeout buzzer when time expires.
+- [x] **5.5. Speed Pop Frenzy (Bouncing Target Rush)**:
+  - [x] Exactly 6 bouncy target circles with full 4-wall elastic reflection physics.
+  - [x] Themed skins (Ghosts, Turkeys, Snowmen, Bubbles) with high-velocity trajectories.
+  - [x] Escalating difficulty per round: speeds ramp up from 240 px/s to 600+ px/s as timer tightens.
+  - [x] Round cleared victory fanfare + time bonuses, timeout fail state with restart.
+- [x] **5.6. Master Game Mode Coordinator**:
+  - [x] Unified `GameMode` state machine (`G` / `M` cycles, `F1`–`F4` direct access).
+  - [x] Live HUD with mode badge, live status banner, theme indicator, and hotkey guide.
 
 ---
 

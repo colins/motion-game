@@ -1,6 +1,7 @@
 extends Node
 
 signal player_updated(id: int, screen_pos: Vector2)
+signal raw_player_updated(id: int, raw_norm: Vector2)
 signal player_removed(id: int)
 signal player_stomped(id: int, screen_pos: Vector2)
 
@@ -12,14 +13,18 @@ var active_players: Dictionary = {} # id -> { "pos": Vector2, "last_seen": float
 var mouse_p0_active: bool = false
 var mouse_p1_active: bool = false
 
+var calibration = preload("res://scripts/calibration.gd").new()
+
 func _ready() -> void:
-	var err = udp.bind(listen_port, "127.0.0.1")
+	add_child(calibration)
+	# Bind to all network interfaces ("*") to accept packets from both local tools and the Raspberry Pi
+	var err = udp.bind(listen_port, "*")
 	if err != OK:
-		# Also try binding to all interfaces if 127.0.0.1 fails
-		err = udp.bind(listen_port, "*")
+		# Fallback to localhost if all interfaces fails
+		err = udp.bind(listen_port, "127.0.0.1")
 	
 	if err == OK:
-		print("[OSCReceiver] Listening for OSC on UDP port %d" % listen_port)
+		print("[OSCReceiver] Listening for OSC on UDP port %d (All interfaces)" % listen_port)
 	else:
 		push_error("[OSCReceiver] Failed to bind to UDP port %d (Error %d)" % [listen_port, err])
 
@@ -93,21 +98,21 @@ func _handle_osc_message(address: String, args: Array) -> void:
 	# Format 1: /player/update [id, x, y]
 	if address == "/player/update" and args.size() >= 3:
 		var pid = int(args[0])
-		var nx = clampf(float(args[1]), 0.0, 1.0)
-		var ny = clampf(float(args[2]), 0.0, 1.0)
-		var screen_pos = Vector2(nx * vp_size.x, ny * vp_size.y)
+		var raw_norm = Vector2(clampf(float(args[1]), 0.0, 1.0), clampf(float(args[2]), 0.0, 1.0))
+		var screen_pos = calibration.map_to_screen(raw_norm, vp_size)
 		active_players[pid] = { "pos": screen_pos, "last_seen": now }
+		raw_player_updated.emit(pid, raw_norm)
 		player_updated.emit(pid, screen_pos)
 		
-	# Format 2: /player/<id> [x, y] (TouchDesigner channel format)
+	# Format 2: /player/<id> [x, y] (Compact channel format)
 	elif address.begins_with("/player/") and args.size() >= 2:
 		var sub = address.substr(8)
 		if sub.is_valid_int():
 			var pid = sub.to_int()
-			var nx = clampf(float(args[0]), 0.0, 1.0)
-			var ny = clampf(float(args[1]), 0.0, 1.0)
-			var screen_pos = Vector2(nx * vp_size.x, ny * vp_size.y)
+			var raw_norm = Vector2(clampf(float(args[0]), 0.0, 1.0), clampf(float(args[1]), 0.0, 1.0))
+			var screen_pos = calibration.map_to_screen(raw_norm, vp_size)
 			active_players[pid] = { "pos": screen_pos, "last_seen": now }
+			raw_player_updated.emit(pid, raw_norm)
 			player_updated.emit(pid, screen_pos)
 			
 	# Format 3: /player/remove [id]
@@ -120,9 +125,8 @@ func _handle_osc_message(address: String, args: Array) -> void:
 	# Format 4: /player/stomp [id, x, y]
 	elif address == "/player/stomp" and args.size() >= 3:
 		var pid = int(args[0])
-		var nx = clampf(float(args[1]), 0.0, 1.0)
-		var ny = clampf(float(args[2]), 0.0, 1.0)
-		var screen_pos = Vector2(nx * vp_size.x, ny * vp_size.y)
+		var raw_norm = Vector2(clampf(float(args[1]), 0.0, 1.0), clampf(float(args[2]), 0.0, 1.0))
+		var screen_pos = calibration.map_to_screen(raw_norm, vp_size)
 		player_stomped.emit(pid, screen_pos)
 
 # Direct In-Engine Mouse Debugging (Works on macOS without running python tool)

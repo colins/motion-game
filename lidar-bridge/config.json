@@ -1,0 +1,12 @@
+{
+  "serial_port": "/dev/ttyUSB0",
+  "baud_rate": 1000000,
+  "target_ip": "127.0.0.1, 10.10.4.16",
+  "osc_port": 9000,
+  "raw_port": 7001,
+  "mock_mode": false,
+  "min_x": -3.0,
+  "max_x": 3.0,
+  "min_y": 0.0,
+  "max_y": 6.0
+}

@@ -21,5 +21,5 @@ python3 tools/osc_mouse_simulator.py
 - Broadcasts UDP packets to `127.0.0.1:9000` at 60 FPS
 - Emits OSC messages in two formats:
   - `/player/update [int id, float x, float y]` (normalized coordinates 0.0 to 1.0)
-  - `/player/<id> [float x, float y]` (compatible with TouchDesigner CHOP channels)
+  - `/player/<id> [float x, float y]` (compact indexed channel format)
   - `/player/remove [int id]` when player steps off the floor
