@@ -14,6 +14,7 @@ var stomp_boost: float = 0.0
 var is_jumping: bool = false
 var jump_timer: float = 0.0
 const JUMP_DURATION: float = 0.60
+var jump_height: float = 48.0
 
 const PLAYER_COLORS = [
 	Color(0.0, 0.94, 1.0),   # P1: Cyan
@@ -71,7 +72,7 @@ func _draw() -> void:
 	var lift = Vector2.ZERO
 	if is_jumping:
 		jump_norm = sin((1.0 - (jump_timer / JUMP_DURATION)) * PI)
-		lift = Vector2(0, -jump_norm * 48.0)
+		lift = Vector2(0, -jump_norm * jump_height)
 		
 		# Draw dark ground shadow beneath the airborne player
 		var shadow_radius = (foot_radius * 0.9) * (1.0 - jump_norm * 0.25)

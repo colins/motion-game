@@ -127,6 +127,7 @@ The project includes 4 physical LiDAR games designed to keep kids actively runni
    - **1 / 2 / 3 / 4**: Quick select holiday theme.
    - **F11 / F**: Toggle Fullscreen projection.
    - **C**: Open **4-Corner Floor Calibration** (aligns projected rect with LiDAR coordinate space).
+   - **D**: Open the live tracking configuration screen. It lists active track IDs and movement speeds; marking IDs as example feet filters other IDs from gameplay until cleared. Set the visual jump height there.
    - **R**: Reset current game / round.
    - **ESC / Q**: Exit game.
 

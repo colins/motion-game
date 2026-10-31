@@ -54,8 +54,13 @@ var last_pop_time: float = 0.0
 var combo_window_sec: float = 1.2
 
 var footprints: Dictionary = {} # id -> PlayerFootprint
+var config_screen: CanvasLayer
 
 func _ready() -> void:
+	config_screen = preload("res://scripts/config_screen.gd").new()
+	config_screen.receiver = osc_receiver
+	add_child(config_screen)
+	set_jump_height(config_screen.jump_height)
 	# Hook up OSC Receiver signals
 	osc_receiver.player_updated.connect(_on_player_updated)
 	osc_receiver.raw_player_updated.connect(_on_raw_player_updated)
@@ -245,6 +250,8 @@ func _get_game_mode_name(mode: GameMode) -> String:
 # PLAYER FOOTPRINTS & OSC HANDLING
 # ==============================================================================
 func _on_player_updated(pid: int, screen_pos: Vector2) -> void:
+	if config_screen and not config_screen.accepts_player(pid):
+		return
 	if not footprints.has(pid):
 		var foot = footprint_scene.instantiate() as PlayerFootprint
 		footprints[pid] = foot
@@ -253,6 +260,18 @@ func _on_player_updated(pid: int, screen_pos: Vector2) -> void:
 		_update_hud()
 	else:
 		footprints[pid].set_target(screen_pos)
+
+func set_jump_height(height: float) -> void:
+	for foot in footprints.values():
+		foot.jump_height = height
+
+func apply_example_filter() -> void:
+	for pid in footprints.keys():
+		if not config_screen.accepts_player(int(pid)):
+			_on_player_removed(int(pid))
+	for pid in osc_receiver.active_players:
+		if config_screen.accepts_player(int(pid)):
+			_on_player_updated(int(pid), osc_receiver.active_players[pid].pos)
 
 func _on_player_removed(pid: int) -> void:
 	if footprints.has(pid):
@@ -477,7 +496,9 @@ func _input(event: InputEvent) -> void:
 			
 		# 6. Exit game (ESC or Q)
 		elif k == KEY_ESCAPE or k == KEY_Q:
-			if not (calibration_overlay and calibration_overlay.visible):
+			if config_screen and config_screen.visible:
+				config_screen.visible = false
+			elif not (calibration_overlay and calibration_overlay.visible):
 				print("[Game] Quitting game...")
 				get_tree().quit()
 				
@@ -492,6 +513,8 @@ func _input(event: InputEvent) -> void:
 					calibration_overlay.close_calibration()
 				else:
 					calibration_overlay.open_calibration(osc_receiver.calibration)
+		elif k == KEY_D:
+			config_screen.visible = not config_screen.visible
 
 func _toggle_fullscreen() -> void:
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
