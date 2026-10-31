@@ -57,6 +57,11 @@ var footprints: Dictionary = {} # id -> PlayerFootprint
 var config_screen: CanvasLayer
 
 func _ready() -> void:
+	if not InputMap.has_action("toggle_config_screen"):
+		InputMap.add_action("toggle_config_screen")
+		var config_key := InputEventKey.new()
+		config_key.physical_keycode = KEY_D
+		InputMap.action_add_event("toggle_config_screen", config_key)
 	config_screen = preload("res://scripts/config_screen.gd").new()
 	config_screen.receiver = osc_receiver
 	add_child(config_screen)
@@ -438,18 +443,22 @@ func _update_hud() -> void:
 	if help_label:
 		match current_game_mode:
 			GameMode.LINE_JUMPER:
-				help_label.text = "[G: Next Game | Space/J: Jump | C: Calibrate | R: Reset | Q: Exit]"
+				help_label.text = "[G: Next | Space/J: Jump | C: Calibrate | D: Tracking Config | R: Reset]"
 			GameMode.CIRCLE_SCRAMBLE:
-				help_label.text = "[G: Next Game | [ / ]: Circles (2-6) | C: Calibrate | R: Reset | Q: Exit]"
+				help_label.text = "[G: Next | [ / ]: Circles | C: Calibrate | D: Tracking Config]"
 			GameMode.SPEED_RUSH:
-				help_label.text = "[G: Next Game | T: Theme | C: Calibrate | R: Reset | Q: Exit]"
+				help_label.text = "[G: Next | T: Theme | C: Calibrate | D: Tracking Config]"
 			_:
-				help_label.text = "[G: Next Game | T: Theme | C: Calibrate | R: Reset | Q: Exit]"
+				help_label.text = "[G: Next | T: Theme | C: Calibrate | D: Tracking Config]"
 
 # ==============================================================================
 # KEYBOARD & INPUT CONTROLS
 # ==============================================================================
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_config_screen"):
+		config_screen.visible = not config_screen.visible
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed:
 		var k = event.keycode if event.keycode != KEY_NONE else event.physical_keycode
 		print("[Input] Key pressed: keycode=%d physical=%d (%s)" % [event.keycode, event.physical_keycode, OS.get_keycode_string(k)])
@@ -513,8 +522,6 @@ func _input(event: InputEvent) -> void:
 					calibration_overlay.close_calibration()
 				else:
 					calibration_overlay.open_calibration(osc_receiver.calibration)
-		elif k == KEY_D:
-			config_screen.visible = not config_screen.visible
 
 func _toggle_fullscreen() -> void:
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
